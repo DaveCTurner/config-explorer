@@ -1,0 +1,119 @@
+<html>
+<head>
+<script src="https://d3js.org/d3.v4.js"></script>
+<style>
+body {
+  font-family: sans-serif;
+}
+
+#steps {
+  background-color: #f0f0f0;
+  border: 1px solid black;
+  padding: 10px;
+}
+
+.step {
+  background-color: #e0e0e0;
+  border: 1px solid black;
+  padding: 10px;
+  margin: 5px;
+}
+
+.zone {
+  display: inline-block;
+  background-color: #d0d0d0;
+  border: 1px solid black;
+  padding: 10px;
+  margin: 5px;
+}
+
+.zoneName {
+  margin: 0px;
+  font-size: 50%;
+}
+
+.instance {
+  display: inline-block;
+  background-color: #c0c0c0;
+  border: 1px solid black;
+  padding: 10px;
+  margin: 5px;
+}
+
+.nodeId {
+  font-size: 50%;
+}
+
+.weight {
+  text-align: center;
+  font-size: 150%;
+}
+
+</style>
+</head>
+<body><div id="steps"></div>
+<button onclick="addAnotherStep()">Add another step</button>
+<script>
+
+function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+var initialZone = {"instances":[]};
+var initialStep = []
+initialStep.push(clone(initialZone));
+initialStep.push(clone(initialZone));
+initialStep.push(clone(initialZone));
+initialStep[0].zoneName = "eu-west-1a";
+initialStep[1].zoneName = "eu-west-1b";
+initialStep[2].zoneName = "eu-west-1c";
+var steps = [initialStep];
+
+var nextNodeId = 1;
+function addNode(zone) {
+  zone.instances.push({"nodeId": nextNodeId++, "weight": 0});
+}
+
+addNode(initialStep[0]);
+addNode(initialStep[1]);
+addNode(initialStep[2]);
+
+function refresh() {
+  var newStepDivs = d3.select("#steps").selectAll("div").data(steps).enter().append("div");
+  newStepDivs.classed("step", true);
+  var newZoneDivs = newStepDivs.selectAll("div").data(function(d) { return d; }).enter().append("div");
+  newZoneDivs.classed("zone", true);
+
+  var zoneNames = newZoneDivs.append("p");
+  zoneNames.classed("zoneName", true);
+  zoneNames.text(function(d) { return d.zoneName; });
+
+  var instanceDivs = newZoneDivs.selectAll("div").data(function(d) { return d.instances; }).enter().append("div");
+  instanceDivs.classed("instance", true);
+  instanceDivs.append("div").classed("nodeId", true).text(function(d) { return "n" + d.nodeId; });
+  instanceDivs.append("div").classed("weight", true).text(function(d) { return d.weight; });
+  instanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { incWeight(d.nodeId); }).text('+');
+  instanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { decWeight(d.nodeId); }).text('-');
+  instanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { killNode(d.nodeId); }).text('x');
+}
+
+function addAnotherStep() {
+  steps.push(initialStep);
+  refresh();
+}
+
+function incWeight(nodeId) {
+  console.log("TODO: increment weight of " + nodeId);
+}
+
+function decWeight(nodeId) {
+  console.log("TODO: decrement weight of " + nodeId);
+}
+
+function killNode(nodeId) {
+  console.log("TODO: kill " + nodeId);
+}
+
+refresh();
+
+</script>
+</body>
+</html>
