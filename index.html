@@ -69,47 +69,70 @@ var steps = [initialStep];
 
 var nextNodeId = 1;
 function addNode(zone) {
-  zone.instances.push({"nodeId": nextNodeId++, "weight": 0});
+  zone.instances.push({"nodeId": nextNodeId++, "weight": 0, "alive": true});
 }
 
 addNode(initialStep[0]);
 addNode(initialStep[1]);
 addNode(initialStep[2]);
 
-function refresh() {
-  var newStepDivs = d3.select("#steps").selectAll("div").data(steps).enter().append("div");
-  newStepDivs.classed("step", true);
-  var newZoneDivs = newStepDivs.selectAll("div").data(function(d) { return d; }).enter().append("div");
-  newZoneDivs.classed("zone", true);
-
-  var zoneNames = newZoneDivs.append("p");
-  zoneNames.classed("zoneName", true);
-  zoneNames.text(function(d) { return d.zoneName; });
-
-  var instanceDivs = newZoneDivs.selectAll("div").data(function(d) { return d.instances; }).enter().append("div");
-  instanceDivs.classed("instance", true);
-  instanceDivs.append("div").classed("nodeId", true).text(function(d) { return "n" + d.nodeId; });
-  instanceDivs.append("div").classed("weight", true).text(function(d) { return d.weight; });
-  instanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { incWeight(d.nodeId); }).text('+');
-  instanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { decWeight(d.nodeId); }).text('-');
-  instanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { killNode(d.nodeId); }).text('x');
+function selectSteps() {
+  return d3.select("#steps").selectAll(".step");
 }
 
-function addAnotherStep() {
-  steps.push(initialStep);
-  refresh();
+function selectZones() {
+  return selectSteps().selectAll(".zone");
+}
+
+function selectInstances() {
+  return selectZones().selectAll(".instance");
+}
+
+function refresh() {
+  selectSteps().data(steps).enter().append("div").classed("step", true);
+  selectZones().data(function(d) { return d; })
+               .enter().append("div").classed("zone", true)
+                       .append("p").classed("zoneName", true);
+  selectZones().selectAll(".zoneName").text(function(d) { return d.zoneName; });
+
+  var newInstanceDivs = selectInstances().data(function(d) { return d.instances; })
+                                         .enter().append("div").classed("instance", true);
+
+  newInstanceDivs.append("div").classed("nodeId", true);
+  newInstanceDivs.append("div").classed("weight", true);
+  newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { incWeight(d.nodeId); }).text('+');
+  newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { decWeight(d.nodeId); }).text('-');
+  newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { killNode(d.nodeId); }).text('x');
+
+  selectInstances().classed("alive", function(d) { return d.alive; });
+  selectInstances().selectAll(".nodeId").text(function(d) { return "n" + d.nodeId; });
+  selectInstances().selectAll(".weight").text(function(d) { return d.weight; });
+}
+
+function onNodeById(step, nodeId, f) {
+  step.forEach(function(zone) { zone.instances.forEach(function(instance) {
+    if (instance.nodeId == nodeId) { f(instance); }}); });
 }
 
 function incWeight(nodeId) {
-  console.log("TODO: increment weight of " + nodeId);
+  var step = clone(steps[0]);
+  onNodeById(step, nodeId, function(instance) { instance.weight++; });
+  steps.push(step);
+  refresh();
 }
 
 function decWeight(nodeId) {
-  console.log("TODO: decrement weight of " + nodeId);
+  var step = clone(steps[0]);
+  onNodeById(step, nodeId, function(instance) { if (instance.weight > 0) { instance.weight--; } });
+  steps.unshift(step);
+  refresh();
 }
 
 function killNode(nodeId) {
-  console.log("TODO: kill " + nodeId);
+  var step = clone(steps[0]);
+  onNodeById(step, nodeId, function(instance) { instance.alive = false; });
+  steps.unshift(step);
+  refresh();
 }
 
 refresh();
