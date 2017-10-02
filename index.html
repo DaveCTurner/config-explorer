@@ -34,10 +34,14 @@ body {
 
 .instance {
   display: inline-block;
-  background-color: #c0c0c0;
+  background-color: #ff8080;
   border: 1px solid black;
   padding: 10px;
   margin: 5px;
+}
+
+.instance.alive {
+  background-color: #80e080;
 }
 
 .nodeId {
@@ -93,10 +97,10 @@ function refresh() {
   selectZones().data(function(d) { return d; })
                .enter().append("div").classed("zone", true)
                        .append("p").classed("zoneName", true);
-  selectZones().selectAll(".zoneName").text(function(d) { return d.zoneName; });
+  selectZones().select(".zoneName").text(function(d) { return d.zoneName; });
 
-  var newInstanceDivs = selectInstances().data(function(d) { return d.instances; })
-                                         .enter().append("div").classed("instance", true);
+  var instanceDivs    = selectInstances().data(function(d) { return d.instances; });
+  var newInstanceDivs = instanceDivs.enter().append("div").classed("instance", true);
 
   newInstanceDivs.append("div").classed("nodeId", true);
   newInstanceDivs.append("div").classed("weight", true);
@@ -104,9 +108,10 @@ function refresh() {
   newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { decWeight(d.nodeId); }).text('-');
   newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { killNode(d.nodeId); }).text('x');
 
-  selectInstances().classed("alive", function(d) { return d.alive; });
-  selectInstances().selectAll(".nodeId").text(function(d) { return "n" + d.nodeId; });
-  selectInstances().selectAll(".weight").text(function(d) { return d.weight; });
+  var instanceDivs    = selectInstances().data(function(d) { return d.instances; });
+  instanceDivs.classed("alive", function(d) { return d.alive; });
+  instanceDivs.select(".nodeId").text(function(d) { return "n" + d.nodeId; });
+  instanceDivs.select(".weight").text(function(d) { return d.weight; });
 }
 
 function onNodeById(step, nodeId, f) {
@@ -117,7 +122,7 @@ function onNodeById(step, nodeId, f) {
 function incWeight(nodeId) {
   var step = clone(steps[0]);
   onNodeById(step, nodeId, function(instance) { instance.weight++; });
-  steps.push(step);
+  steps.unshift(step);
   refresh();
 }
 
