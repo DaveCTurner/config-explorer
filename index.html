@@ -78,15 +78,15 @@ textarea {
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
 var initialZone = {"instances":[]};
-var initialStep = []
-initialStep.push(clone(initialZone));
-initialStep.push(clone(initialZone));
-initialStep.push(clone(initialZone));
+var initialStep = {"minimumQuorumSize": 1, "zones":[]};
+initialStep.zones.push(clone(initialZone));
+initialStep.zones.push(clone(initialZone));
+initialStep.zones.push(clone(initialZone));
 
-initialStep[0].zoneName = "eu-west-1a";
-initialStep[0].instances.push({"weight": 1});
-initialStep[1].zoneName = "eu-west-1b";
-initialStep[2].zoneName = "eu-west-1c";
+initialStep.zones[0].zoneName = "eu-west-1a";
+initialStep.zones[0].instances.push({"weight": 1});
+initialStep.zones[1].zoneName = "eu-west-1b";
+initialStep.zones[2].zoneName = "eu-west-1c";
 
 function selectSteps() {
   return d3.select("#steps").selectAll(".step");
@@ -105,11 +105,11 @@ function refresh() {
   newSteps = allSteps.enter();
   newStepDivs = newSteps.append("div").classed("step", true).style('opacity', 1.0);
   newStepDivs.append("div").classed("stepReason", true).text(function(d) { return d.reason; });
-  newStepDivs.append("div").classed("stepDescription", true).text(function(d) { return describeStep(d.zones); });
+  newStepDivs.append("div").classed("stepDescription", true).text(function(d) { return describeStep(d.config); });
 
   allSteps.transition().duration(300).style('opacity', 0.5);
 
-  newZones = selectZones().data(function(d) { return d.zones; })
+  newZones = selectZones().data(function(d) { return d.config.zones; })
                           .enter();
   newZones.append("div").classed("zone", true).append("p").classed("zoneName", true);
 
@@ -127,26 +127,27 @@ function refresh() {
   instanceDivs.select(".weight").text(function(d) { return d.weight; });
 
   if (steps.length > 0) {
-    document.getElementById("nextJson").value = JSON.stringify(steps[steps.length-1].zones, null, 2);
+    document.getElementById("nextJson").value = JSON.stringify(steps[steps.length-1].config, null, 2);
   }
 }
 
 var steps = []
 refresh();
 nextStepId = 0;
-var steps = [{"zones":initialStep, "stepId": nextStepId++, "reason": "Initial state"}];
+var steps = [{"config":initialStep, "stepId": nextStepId++, "reason": "Initial state"}];
 
 refresh();
 
-function addStep(zones, reason) {
-  steps.push({"zones": zones, "stepId": nextStepId++, "reason": reason});
+function addStep(config, reason) {
+  steps.push({"config": config, "stepId": nextStepId++, "reason": reason});
   refresh();
   window.scrollTo(0,document.body.scrollHeight);
 }
 
 function applyChanges() {
   var currentStepId = nextStepId;
-  var nextStepZones = JSON.parse(document.getElementById("nextJson").value);
+  var nextStepConfig = JSON.parse(document.getElementById("nextJson").value);
+  var nextStepZones = nextStepConfig.zones;
 
   nextStepZones.forEach(function(zone) {
     zone.instances.forEach(function(instance) {
@@ -169,7 +170,7 @@ function applyChanges() {
     });
   });
 
-  addStep(nextStepZones, "Changes applied");
+  addStep(nextStepConfig, "Changes applied");
 
   window.setTimeout(function() {
     if (nextStepId == currentStepId + 1) {
@@ -179,19 +180,26 @@ function applyChanges() {
 }
 
 function autoReconfigure() {
-  var newZones = clone(steps[steps.length-1].zones);
+  var newConfig = clone(steps[steps.length-1].config);
+  var newZones = newConfig.zones
 
   var instances = [];
   newZones.forEach(function(zone) { zone.instances.forEach(function(instance) { instances.push(instance); }) });
 
+  var targetLiveNodeCount = newConfig.minimumQuorumSize * 2 - 1;
+
   var liveNodeCount = instances.filter(function(i) { return !("state" in i); }).length;
-  if (liveNodeCount == 0) {
-    var retiringNodes = instances.filter(function(i) { return i.state === "retiring"; });
-    if (retiringNodes.length > 0) {
-      delete retiringNodes[0].state;
+  var retiringNodes = instances.filter(function(i) { return i.state === "retiring"; });
+  while (liveNodeCount < targetLiveNodeCount) {
+    if (retiringNodes.length == 0) {
+      break;
     }
-    liveNodeCount = 1;
+
+    var notRetiringYet = retiringNodes.pop();
+    delete notRetiringYet.state;
+    liveNodeCount += 1;
   }
+
   var lastLiveInstance = null;
   instances.forEach(function(i) {
     if (i.state === "retiring") { i.state = "retired"; }
@@ -206,19 +214,20 @@ function autoReconfigure() {
     lastLiveInstance.weight = 0;
   }
 
-  addStep(newZones, "Auto-reconfiguration applied");
+  addStep(newConfig, "Auto-reconfiguration applied");
 }
 
-function describeStep(zones) {
+function describeStep(config) {
   var totalWeight = 0;
-  zones.forEach(function(zone) {
+  config.zones.forEach(function(zone) {
     zone.instances.forEach(function(instance) {
       totalWeight += instance.weight;
     });
   });
 
   var minQuorum = Math.ceil((totalWeight+1)/2);
-  return "total weight needed for quorum = " + minQuorum;
+  return "total weight needed for quorum = " + minQuorum +
+    "; will not auto-reconfigure below " + config.minimumQuorumSize;
 }
 
 </script>
