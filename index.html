@@ -1,30 +1,40 @@
 <html>
 <head>
+<title>Auto-reconfiguration explorer</title>
 <script src="https://d3js.org/d3.v4.js"></script>
 <style>
 body {
   font-family: sans-serif;
 }
 
-#steps {
-  background-color: #f0f0f0;
-  border: 1px solid black;
-  padding: 10px;
+textarea {
+  font-family: monospace;
+  font-size: 80%;
+  margin: 5px;
+}
+
+#nextJson {
+  width: 40em;
+  height: 30em;
 }
 
 .step {
   background-color: #e0e0e0;
   border: 1px solid black;
-  padding: 10px;
-  margin: 5px;
+  padding: 2px 10px;
+  margin: 2px;
+}
+
+.stepDescription {
+  font-size: 50%;
 }
 
 .zone {
   display: inline-block;
   background-color: #d0d0d0;
   border: 1px solid black;
-  padding: 10px;
-  margin: 5px;
+  padding: 2px 10px;
+  margin: 2px;
 }
 
 .zoneName {
@@ -34,18 +44,22 @@ body {
 
 .instance {
   display: inline-block;
-  background-color: #ff8080;
-  border: 1px solid black;
-  padding: 10px;
-  margin: 5px;
-}
-
-.instance.alive {
   background-color: #80e080;
+  border: 1px solid black;
+  padding: 0px 3px;
+  margin: 1px;
 }
 
-.nodeId {
-  font-size: 50%;
+.instance.dead {
+  background-color: #ff8080;
+}
+
+.instance.retiring {
+  background-color: #ffff80;
+}
+
+.instance.retired {
+  background-color: #ffc080;
 }
 
 .weight {
@@ -56,7 +70,9 @@ body {
 </style>
 </head>
 <body><div id="steps"></div>
-<button onclick="addAnotherStep()">Add another step</button>
+<div id="next"><textarea id="nextJson"></textarea></div>
+<button onclick="applyChanges()">Apply changes</button>
+</div>
 <script>
 
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
@@ -66,19 +82,11 @@ var initialStep = []
 initialStep.push(clone(initialZone));
 initialStep.push(clone(initialZone));
 initialStep.push(clone(initialZone));
+
 initialStep[0].zoneName = "eu-west-1a";
+initialStep[0].instances.push({"weight": 1});
 initialStep[1].zoneName = "eu-west-1b";
 initialStep[2].zoneName = "eu-west-1c";
-var steps = [initialStep];
-
-var nextNodeId = 1;
-function addNode(zone) {
-  zone.instances.push({"nodeId": nextNodeId++, "weight": 0, "alive": true});
-}
-
-addNode(initialStep[0]);
-addNode(initialStep[1]);
-addNode(initialStep[2]);
 
 function selectSteps() {
   return d3.select("#steps").selectAll(".step");
@@ -93,54 +101,125 @@ function selectInstances() {
 }
 
 function refresh() {
-  selectSteps().data(steps).enter().append("div").classed("step", true);
-  selectZones().data(function(d) { return d; })
-               .enter().append("div").classed("zone", true)
-                       .append("p").classed("zoneName", true);
+  allSteps = selectSteps().data(steps)
+  newSteps = allSteps.enter();
+  newStepDivs = newSteps.append("div").classed("step", true).style('opacity', 1.0);
+  newStepDivs.append("div").classed("stepReason", true).text(function(d) { return d.reason; });
+  newStepDivs.append("div").classed("stepDescription", true).text(function(d) { return describeStep(d.zones); });
+
+  allSteps.transition().duration(300).style('opacity', 0.5);
+
+  newZones = selectZones().data(function(d) { return d.zones; })
+                          .enter();
+  newZones.append("div").classed("zone", true).append("p").classed("zoneName", true);
+
   selectZones().select(".zoneName").text(function(d) { return d.zoneName; });
 
   var instanceDivs    = selectInstances().data(function(d) { return d.instances; });
   var newInstanceDivs = instanceDivs.enter().append("div").classed("instance", true);
 
-  newInstanceDivs.append("div").classed("nodeId", true);
   newInstanceDivs.append("div").classed("weight", true);
-  newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { incWeight(d.nodeId); }).text('+');
-  newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { decWeight(d.nodeId); }).text('-');
-  newInstanceDivs.append("button").classed("nodeAction", true).on("click", function(d) { killNode(d.nodeId); }).text('x');
 
   var instanceDivs    = selectInstances().data(function(d) { return d.instances; });
-  instanceDivs.classed("alive", function(d) { return d.alive; });
-  instanceDivs.select(".nodeId").text(function(d) { return "n" + d.nodeId; });
+  instanceDivs.classed("dead",     function(d) { return d.state === "dead"; });
+  instanceDivs.classed("retiring", function(d) { return d.state === "retiring"; });
+  instanceDivs.classed("retired",  function(d) { return d.state === "retired"; });
   instanceDivs.select(".weight").text(function(d) { return d.weight; });
+
+  if (steps.length > 0) {
+    document.getElementById("nextJson").value = JSON.stringify(steps[steps.length-1].zones, null, 2);
+  }
 }
 
-function onNodeById(step, nodeId, f) {
-  step.forEach(function(zone) { zone.instances.forEach(function(instance) {
-    if (instance.nodeId == nodeId) { f(instance); }}); });
-}
-
-function incWeight(nodeId) {
-  var step = clone(steps[0]);
-  onNodeById(step, nodeId, function(instance) { instance.weight++; });
-  steps.unshift(step);
-  refresh();
-}
-
-function decWeight(nodeId) {
-  var step = clone(steps[0]);
-  onNodeById(step, nodeId, function(instance) { if (instance.weight > 0) { instance.weight--; } });
-  steps.unshift(step);
-  refresh();
-}
-
-function killNode(nodeId) {
-  var step = clone(steps[0]);
-  onNodeById(step, nodeId, function(instance) { instance.alive = false; });
-  steps.unshift(step);
-  refresh();
-}
+var steps = []
+refresh();
+nextStepId = 0;
+var steps = [{"zones":initialStep, "stepId": nextStepId++, "reason": "Initial state"}];
 
 refresh();
+
+function addStep(zones, reason) {
+  steps.push({"zones": zones, "stepId": nextStepId++, "reason": reason});
+  refresh();
+  window.scrollTo(0,document.body.scrollHeight);
+}
+
+function applyChanges() {
+  var currentStepId = nextStepId;
+  var nextStepZones = JSON.parse(document.getElementById("nextJson").value);
+
+  nextStepZones.forEach(function(zone) {
+    zone.instances.forEach(function(instance) {
+      if (!("weight" in instance)) {
+        instance.weight = 0;
+      } else if (!isFinite(instance.weight)) {
+        instance.weight = 0;
+      } else if (instance.weight < 0) {
+        instance.weight = 0;
+      } else {
+        instance.weight = Math.floor(instance.weight);
+      }
+
+      if (instance.state === "dead") {
+      } else if (instance.state === "retired") {
+      } else if (instance.state === "retiring") {
+      } else {
+        delete instance.state;
+      }
+    });
+  });
+
+  addStep(nextStepZones, "Changes applied");
+
+  window.setTimeout(function() {
+    if (nextStepId == currentStepId + 1) {
+      autoReconfigure();
+    }
+  }, 2000);
+}
+
+function autoReconfigure() {
+  var newZones = clone(steps[steps.length-1].zones);
+
+  var instances = [];
+  newZones.forEach(function(zone) { zone.instances.forEach(function(instance) { instances.push(instance); }) });
+
+  var liveNodeCount = instances.filter(function(i) { return !("state" in i); }).length;
+  if (liveNodeCount == 0) {
+    var retiringNodes = instances.filter(function(i) { return i.state === "retiring"; });
+    if (retiringNodes.length > 0) {
+      delete retiringNodes[0].state;
+    }
+    liveNodeCount = 1;
+  }
+  var lastLiveInstance = null;
+  instances.forEach(function(i) {
+    if (i.state === "retiring") { i.state = "retired"; }
+    if ("state" in i) {
+      i.weight = 0;
+    } else {
+      i.weight = 1;
+      lastLiveInstance = i;
+    }
+  });
+  if (liveNodeCount % 2 == 0) {
+    lastLiveInstance.weight = 0;
+  }
+
+  addStep(newZones, "Auto-reconfiguration applied");
+}
+
+function describeStep(zones) {
+  var totalWeight = 0;
+  zones.forEach(function(zone) {
+    zone.instances.forEach(function(instance) {
+      totalWeight += instance.weight;
+    });
+  });
+
+  var minQuorum = Math.ceil((totalWeight+1)/2);
+  return "total weight needed for quorum = " + minQuorum;
+}
 
 </script>
 </body>
