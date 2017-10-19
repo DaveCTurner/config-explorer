@@ -210,7 +210,7 @@ function autoReconfigure() {
       lastLiveInstance = i;
     }
   });
-  if (liveNodeCount % 2 == 0) {
+  if (liveNodeCount > 0 && liveNodeCount % 2 == 0) {
     lastLiveInstance.weight = 0;
   }
 
