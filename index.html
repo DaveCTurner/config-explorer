@@ -133,6 +133,10 @@ function refresh() {
   instanceDivs.classed("retired",    function(d) { return d.state === "retired"; });
   instanceDivs.classed("unweighted", function(d) { return d.weight === 0; });
   instanceDivs.select(".weight").html(function(d) {
+    if (d.weight === 0) {
+      return "&nbsp;☐&nbsp;"
+    }
+
     var s = "";
     while (s.length < d.weight) {
       s += "☑";
