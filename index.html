@@ -1,5 +1,6 @@
 <html>
 <head>
+<meta charset="UTF-8">
 <title>Auto-reconfiguration explorer</title>
 <script src="https://d3js.org/d3.v4.js"></script>
 <style>
@@ -62,9 +63,15 @@ textarea {
   background-color: #ffc080;
 }
 
+.instance.unweighted {
+  background-color: #c0c0c0;
+}
+
 .weight {
   text-align: center;
   font-size: 150%;
+  min-width: 33px;
+  min-height: 29px;
 }
 
 </style>
@@ -121,10 +128,17 @@ function refresh() {
   newInstanceDivs.append("div").classed("weight", true);
 
   var instanceDivs    = selectInstances().data(function(d) { return d.instances; });
-  instanceDivs.classed("dead",     function(d) { return d.state === "dead"; });
-  instanceDivs.classed("retiring", function(d) { return d.state === "retiring"; });
-  instanceDivs.classed("retired",  function(d) { return d.state === "retired"; });
-  instanceDivs.select(".weight").text(function(d) { return d.weight; });
+  instanceDivs.classed("dead",       function(d) { return d.state === "dead"; });
+  instanceDivs.classed("retiring",   function(d) { return d.state === "retiring"; });
+  instanceDivs.classed("retired",    function(d) { return d.state === "retired"; });
+  instanceDivs.classed("unweighted", function(d) { return d.weight === 0; });
+  instanceDivs.select(".weight").html(function(d) {
+    var s = "";
+    while (s.length < d.weight) {
+      s += "☑";
+    }
+    return "&nbsp;" + s + "&nbsp;";
+  });
 
   if (steps.length > 0) {
     document.getElementById("nextJson").value = JSON.stringify(steps[steps.length-1].config, null, 2);
